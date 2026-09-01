@@ -84,7 +84,7 @@ If this is a disposable container, put these commands into the Dockerfile before
 
 ### 4. Download a checkpoint
 
-Download checkpoint `23-36-37` (the initially validated model):
+Download checkpoint `23-36-37` (Already available in the repo):
 
 ```bash
 mkdir -p weights/23-36-37
@@ -142,7 +142,7 @@ The D456 should appear. FFS uses the hardware-synchronised `Infrared 1` and `Inf
 
 ## Test
 
-### 7. Capture and validate one D456 stereo pair
+### Capture and validate one D456 stereo pair
 
 Use `848x480 @ 30 FPS` for the offline capture test. After `profile = pipeline.start(config)`, disable the emitter on every startup:
 
@@ -152,7 +152,67 @@ depth_sensor.set_option(rs.option.emitter_enabled, 0)
 print('IR emitter enabled:', depth_sensor.get_option(rs.option.emitter_enabled))
 ```
 
-The capture process saves:
+Run the following command from the repository root. It waits for auto-exposure to settle, then saves one hardware-synchronised `Infrared 1` / `Infrared 2` pair and the corresponding left-camera calibration:
+
+```bash
+python - <<'PY'
+import os
+import cv2
+import numpy as np
+import pyrealsense2 as rs
+
+out_dir = 'realsense_data'
+os.makedirs(out_dir, exist_ok=True)
+
+pipeline = rs.pipeline()
+config = rs.config()
+config.enable_stream(rs.stream.infrared, 1, 848, 480, rs.format.y8, 30)
+config.enable_stream(rs.stream.infrared, 2, 848, 480, rs.format.y8, 30)
+
+profile = pipeline.start(config)
+
+try:
+    depth_sensor = profile.get_device().first_depth_sensor()
+    if depth_sensor.supports(rs.option.emitter_enabled):
+        depth_sensor.set_option(rs.option.emitter_enabled, 0)
+        print('IR emitter enabled:', depth_sensor.get_option(rs.option.emitter_enabled))
+
+    # Discard initial frames so automatic exposure settles.
+    for _ in range(30):
+        frames = pipeline.wait_for_frames()
+
+    left_frame = frames.get_infrared_frame(1)
+    right_frame = frames.get_infrared_frame(2)
+    left = np.asanyarray(left_frame.get_data())
+    right = np.asanyarray(right_frame.get_data())
+
+    left_profile = left_frame.profile.as_video_stream_profile()
+    right_profile = right_frame.profile.as_video_stream_profile()
+    intr = left_profile.get_intrinsics()
+    extr = left_profile.get_extrinsics_to(right_profile)
+    baseline = float(np.linalg.norm(extr.translation))
+
+    cv2.imwrite(f'{out_dir}/left.png', left)
+    cv2.imwrite(f'{out_dir}/right.png', right)
+
+    K = [
+        intr.fx, 0.0, intr.ppx,
+        0.0, intr.fy, intr.ppy,
+        0.0, 0.0, 1.0,
+    ]
+    with open(f'{out_dir}/K.txt', 'w') as f:
+        f.write(' '.join(map(str, K)) + '\n')
+        f.write(f'{baseline}\n')
+
+    print(f'Saved pair to {out_dir}/')
+    print(f'Resolution: {left.shape[1]}x{left.shape[0]}')
+    print(f'fx={intr.fx:.3f}, fy={intr.fy:.3f}, baseline={baseline:.6f} m')
+finally:
+    pipeline.stop()
+PY
+```
+
+This command creates:
 
 ```text
 realsense_data/left.png
