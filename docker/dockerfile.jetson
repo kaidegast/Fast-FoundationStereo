@@ -9,9 +9,13 @@
 ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.03-py3
 FROM ${BASE_IMAGE}
 
+# PyTorch in NVIDIA's framework image links to HPC-X UCC. Put the matching
+# UCX first, before any Jetson host library mounted by the NVIDIA runtime;
+# otherwise UCC can fail with ucs_config_doc_nop.
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    LD_LIBRARY_PATH=/opt/hpcx/ucx/lib:/opt/hpcx/ucc/lib:${LD_LIBRARY_PATH}
 
 # TensorRT and CUDA are supplied by the NVIDIA JetPack/PyTorch image and made
 # available to the container by the NVIDIA container runtime. Do not install
