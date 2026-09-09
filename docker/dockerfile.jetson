@@ -33,6 +33,7 @@ RUN python3 -m pip install --upgrade pip && \
 
 WORKDIR /workspace
 
-# Fail early if a non-Jetson image was selected. TensorRT is needed only for
-# the TensorRT commands; PyTorch-only inference remains available without it.
-RUN python3 -c "import torch; assert torch.cuda.is_available(), 'Selected base image has no CUDA-enabled PyTorch'; print('PyTorch:', torch.__version__); print('CUDA:', torch.version.cuda)"
+# Fail early if a non-CUDA PyTorch image was selected. Docker build stages do
+# not reliably receive the Jetson GPU, so torch.cuda.is_available() is checked
+# after `docker run`, not here. TensorRT is needed only for TRT commands.
+RUN python3 -c "import torch; assert torch.version.cuda is not None, 'Selected base image has no CUDA-enabled PyTorch'; print('PyTorch:', torch.__version__); print('CUDA:', torch.version.cuda)"
