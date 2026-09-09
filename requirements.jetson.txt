@@ -1,0 +1,15 @@
+# Python dependencies for the Jetson container. CUDA-enabled torch and
+# torchvision come from the NVIDIA Jetson PyTorch base image.
+#
+# Open3D is deliberately omitted: PyPI does not provide a dependable ARM64
+# wheel across JetPack releases. Use --get_pc 0 on Jetson unless Open3D is
+# installed from an ARM64-compatible source.
+timm
+einops
+omegaconf
+scipy
+numpy<2
+scikit-image
+imageio
+pyyaml
+onnx

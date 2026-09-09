@@ -1,0 +1,38 @@
+# Fast-FoundationStereo on NVIDIA Jetson Orin (ARM64).
+#
+# The default image is NVIDIA's Jetson-compatible PyTorch container for
+# JetPack 6.2. Build this image *on the Jetson*, never on an x86 host.
+#
+# For another JetPack release, select an NVIDIA PyTorch container that is
+# explicitly compatible with that release, for example:
+#   docker build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:<tag> ...
+ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.03-py3
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# TensorRT and CUDA are supplied by the NVIDIA JetPack/PyTorch image and made
+# available to the container by the NVIDIA container runtime. Do not install
+# x86 CUDA, TensorRT, PyTorch, torchvision, xformers, or Miniconda here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    git \
+    libgl1 \
+    libglib2.0-0 \
+    libusb-1.0-0 \
+    python3-opencv \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.jetson.txt /tmp/requirements.jetson.txt
+RUN python3 -m pip install --upgrade pip && \
+    python3 -m pip install -r /tmp/requirements.jetson.txt
+
+WORKDIR /workspace
+
+# Fail early if a non-Jetson image was selected. TensorRT is needed only for
+# the TensorRT commands; PyTorch-only inference remains available without it.
+RUN python3 -c "import torch; assert torch.cuda.is_available(), 'Selected base image has no CUDA-enabled PyTorch'; print('PyTorch:', torch.__version__); print('CUDA:', torch.version.cuda)"

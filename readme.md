@@ -33,6 +33,10 @@ docker build --network host -t ffs -f docker/dockerfile .
 bash docker/run_container.sh
 ```
 
+For an NVIDIA Jetson Orin (ARM64), use the separate JetPack-compatible Docker
+setup in [JETSON_ORIN_DOCKER.md](JETSON_ORIN_DOCKER.md). The Dockerfile above
+is x86_64-only.
+
 - Option 2: pip
 ```bash
 conda create -n ffs python=3.12 && conda activate ffs

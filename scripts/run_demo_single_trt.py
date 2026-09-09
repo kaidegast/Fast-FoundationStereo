@@ -225,6 +225,8 @@ if __name__ == '__main__':
                         help='Generate and save point cloud')
     parser.add_argument('--zfar', type=float, default=100,
                         help='Max depth (m) to include in point cloud')
+    parser.add_argument('--show', type=int, default=1,
+                        help='Show the disparity window (0 for headless use)')
     args = parser.parse_args()
 
     set_logging_format()
@@ -297,8 +299,9 @@ if __name__ == '__main__':
     imageio.imwrite(f'{args.out_dir}/disp_vis.png', vis)
     s = 1280 / vis.shape[1]
     resized_vis = cv2.resize(vis, (int(vis.shape[1] * s), int(vis.shape[0] * s)))
-    cv2.imshow('disp', resized_vis[:, :, ::-1])
-    cv2.waitKey(0)
+    if args.show:
+        cv2.imshow('disp', resized_vis[:, :, ::-1])
+        cv2.waitKey(0)
 
     # ── Remove invisible pixels ──────────────────────────────────────────
     if args.remove_invisible:
