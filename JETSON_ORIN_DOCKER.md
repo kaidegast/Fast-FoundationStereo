@@ -128,10 +128,10 @@ python3 scripts/make_single_onnx.py \
   --save_path output_ffs_trt_jetson \
   --height 480 --width 640 --valid_iters 4 --max_disp 128
 
-trtexec \
-  --onnx=output_ffs_trt_jetson/fast_foundationstereo.onnx \
-  --saveEngine=output_ffs_trt_jetson/fast_foundationstereo.engine \
-  --fp16
+python3 scripts/build_single_trt_engine.py \
+  --onnx output_ffs_trt_jetson/fast_foundationstereo.onnx \
+  --engine output_ffs_trt_jetson/fast_foundationstereo.engine \
+  --workspace-gb 2
 
 python3 scripts/run_demo_single_trt.py \
   --model_file output_ffs_trt_jetson/fast_foundationstereo.engine \
@@ -140,10 +140,11 @@ python3 scripts/run_demo_single_trt.py \
   --intrinsic_file demo_data/K.txt --out_dir output_jetson_trt --get_pc 0 --show 0
 ```
 
-If `trtexec` is not on `PATH`, locate the copy supplied by the JetPack image
-with `find /usr -name trtexec -type f 2>/dev/null`. If TensorRT cannot import
-in the container, select a JetPack-matched TensorRT image rather than mixing
-host Ubuntu packages or unsupported desktop wheels into the container.
+The repository engine-builder uses TensorRT's Python API and does not require
+`trtexec`, which is omitted from some otherwise complete Jetson TensorRT
+containers. If TensorRT cannot import in the container, select a
+JetPack-matched TensorRT image rather than mixing host Ubuntu packages or
+unsupported desktop wheels into the container.
 
 ## RealSense or X11 (optional)
 
