@@ -37,8 +37,8 @@ Confirm the runtime again with `docker info --format '{{.Runtimes}}'` before
 building FFS. The launcher below selects `--runtime nvidia` explicitly.
 
 For this JetPack 6 host, the default is
-`dustynv/torchvision:0.21.0-r36.4.0-cu128-24.04`. It provides the project's
-PyTorch 2.6 / torchvision 0.21 pair with Orin-compatible CUDA kernels. The
+`dustynv/torch2trt:r36.4.0-cu128-24.04`. It provides the project's PyTorch
+2.6 / torchvision 0.21 pair, TensorRT, and Orin-compatible CUDA kernels. The
 available image tag is `r36.4.0`; it is compatible with the R36.4.x host
 family. If the host uses a different JetPack release, choose a corresponding
 Jetson-native image and pass it as `BASE_IMAGE` in the build command below.
@@ -66,6 +66,10 @@ docker build --network host \
 The image deliberately uses NVIDIA's CUDA-enabled PyTorch package. Installing
 the x86 CUDA 12.4 PyPI wheels or the x86 Miniconda installer from the original
 Dockerfile will fail on ARM64 or replace the Jetson-tuned stack.
+
+OpenCV is installed with pip rather than Ubuntu's `python3-opencv` package:
+the container's Python runs from its own virtual environment, which cannot
+import Ubuntu system-Python packages.
 
 ## 3. Start a GPU container and verify it
 
@@ -138,9 +142,8 @@ python3 scripts/run_demo_single_trt.py \
 
 If `trtexec` is not on `PATH`, locate the copy supplied by the JetPack image
 with `find /usr -name trtexec -type f 2>/dev/null`. If TensorRT cannot import
-in the container, select a JetPack-matched image with TensorRT bindings rather
-than installing `tensorrt-cu12` from PyPI (those packages target desktop CUDA
-stacks).
+in the container, select a JetPack-matched TensorRT image rather than mixing
+host Ubuntu packages or unsupported desktop wheels into the container.
 
 ## RealSense or X11 (optional)
 

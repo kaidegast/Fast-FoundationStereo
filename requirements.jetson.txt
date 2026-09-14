@@ -10,6 +10,7 @@ omegaconf
 scipy
 numpy<2
 scikit-image
+opencv-python==4.10.0.84
 imageio
 pyyaml
 onnx

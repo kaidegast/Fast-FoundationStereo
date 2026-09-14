@@ -1,22 +1,22 @@
 # Fast-FoundationStereo on NVIDIA Jetson Orin (ARM64).
 #
-# The default image is a Jetson-native PyTorch/torchvision image built for the
-# JetPack 6 (L4T r36.4) family and Orin's SM 87 GPU. Build this image *on the
-# Jetson*, never on an x86 host.
+# The default image is a Jetson-native PyTorch/torchvision/TensorRT image built
+# for the JetPack 6 (L4T r36.4) family and Orin's SM 87 GPU. Build this image
+# *on the Jetson*, never on an x86 host.
 #
 # For another JetPack release, select an NVIDIA PyTorch container that is
 # explicitly compatible with that release, for example:
 #   docker build --build-arg BASE_IMAGE=<JetPack-matched Jetson image> ...
-ARG BASE_IMAGE=dustynv/torchvision:0.21.0-r36.4.0-cu128-24.04
+ARG BASE_IMAGE=dustynv/torch2trt:r36.4.0-cu128-24.04
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# TensorRT and CUDA are supplied by the Jetson-native base image and made
-# available to the container by the NVIDIA container runtime. Do not install
-# desktop CUDA, TensorRT, PyTorch, torchvision, xformers, or Miniconda here.
+# CUDA, TensorRT, PyTorch, and torchvision are supplied by the Jetson-native
+# base image and made available to the container by the NVIDIA runtime. Do not
+# install desktop CUDA/TensorRT/PyTorch/torchvision wheels or Miniconda here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
@@ -25,7 +25,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1 \
     libglib2.0-0 \
     libusb-1.0-0 \
-    python3-opencv \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.jetson.txt /tmp/requirements.jetson.txt
