@@ -1,8 +1,9 @@
 # Fast-FoundationStereo on Jetson Orin GPU
 
-This setup targets an ARM64 Jetson Orin running **JetPack 6.2**. It uses a
-Jetson-compatible NVIDIA PyTorch image; the repository's `docker/dockerfile`
-is for x86_64 PCs and must not be built on an Orin.
+This setup targets an ARM64 Jetson Orin running **JetPack 6.2.1 / L4T 36.4.4**.
+It uses a Jetson-native PyTorch image with Orin (`sm_87`) CUDA kernels; the
+repository's `docker/dockerfile` is for x86_64 PCs and must not be built on an
+Orin.
 
 The TensorRT engine in `output_ffs_trt/` was built elsewhere and is not
 portable to Orin. Export ONNX and build a fresh engine on the Jetson.
@@ -35,11 +36,14 @@ newgrp docker
 Confirm the runtime again with `docker info --format '{{.Runtimes}}'` before
 building FFS. The launcher below selects `--runtime nvidia` explicitly.
 
-For JetPack 6.2, NVIDIA's `pytorch:25.03-py3` framework container is a
-compatible starting point. If the host uses a different JetPack release,
-choose an NVIDIA PyTorch container explicitly supported by that release and
-pass it as `BASE_IMAGE` in the build command below. Do not use ordinary
-`nvidia/cuda` or `nvidia/cuda:12.4` images on Jetson.
+For this JetPack 6 host, the default is
+`dustynv/torchvision:0.21.0-r36.4.0-cu128-24.04`. It provides the project's
+PyTorch 2.6 / torchvision 0.21 pair with Orin-compatible CUDA kernels. The
+available image tag is `r36.4.0`; it is compatible with the R36.4.x host
+family. If the host uses a different JetPack release, choose a corresponding
+Jetson-native image and pass it as `BASE_IMAGE` in the build command below.
+Do not use ordinary desktop `nvidia/cuda` or `nvidia/cuda:12.4` images on
+Jetson.
 
 ## 2. Build on the Jetson
 
@@ -55,7 +59,7 @@ For a different compatible base-image tag:
 
 ```bash
 docker build --network host \
-  --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:<compatible-tag> \
+  --build-arg BASE_IMAGE=<JetPack-matched-Jetson-image> \
   -t ffs:jetson -f docker/dockerfile.jetson .
 ```
 

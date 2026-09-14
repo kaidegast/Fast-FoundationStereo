@@ -1,25 +1,22 @@
 # Fast-FoundationStereo on NVIDIA Jetson Orin (ARM64).
 #
-# The default image is NVIDIA's Jetson-compatible PyTorch container for
-# JetPack 6.2. Build this image *on the Jetson*, never on an x86 host.
+# The default image is a Jetson-native PyTorch/torchvision image built for the
+# JetPack 6 (L4T r36.4) family and Orin's SM 87 GPU. Build this image *on the
+# Jetson*, never on an x86 host.
 #
 # For another JetPack release, select an NVIDIA PyTorch container that is
 # explicitly compatible with that release, for example:
-#   docker build --build-arg BASE_IMAGE=nvcr.io/nvidia/pytorch:<tag> ...
-ARG BASE_IMAGE=nvcr.io/nvidia/pytorch:25.03-py3
+#   docker build --build-arg BASE_IMAGE=<JetPack-matched Jetson image> ...
+ARG BASE_IMAGE=dustynv/torchvision:0.21.0-r36.4.0-cu128-24.04
 FROM ${BASE_IMAGE}
 
-# PyTorch in NVIDIA's framework image links to HPC-X UCC. Put the matching
-# UCX first, before any Jetson host library mounted by the NVIDIA runtime;
-# otherwise UCC can fail with ucs_config_doc_nop.
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    LD_LIBRARY_PATH=/opt/hpcx/ucx/lib:/opt/hpcx/ucc/lib:${LD_LIBRARY_PATH}
+    PYTHONDONTWRITEBYTECODE=1
 
-# TensorRT and CUDA are supplied by the NVIDIA JetPack/PyTorch image and made
+# TensorRT and CUDA are supplied by the Jetson-native base image and made
 # available to the container by the NVIDIA container runtime. Do not install
-# x86 CUDA, TensorRT, PyTorch, torchvision, xformers, or Miniconda here.
+# desktop CUDA, TensorRT, PyTorch, torchvision, xformers, or Miniconda here.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ca-certificates \
@@ -32,8 +29,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.jetson.txt /tmp/requirements.jetson.txt
-RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install -r /tmp/requirements.jetson.txt
+# The base image points pip at an old Jetson AI Lab index, which no longer
+# resolves. These are architecture-neutral dependencies; get them from PyPI
+# without altering the CUDA-enabled torch/torchvision already in the image.
+RUN python3 -m pip install --index-url https://pypi.org/simple \
+    -r /tmp/requirements.jetson.txt
 
 WORKDIR /workspace
 
