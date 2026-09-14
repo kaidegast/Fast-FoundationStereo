@@ -8,11 +8,62 @@
 # explicitly compatible with that release, for example:
 #   docker build --build-arg BASE_IMAGE=<JetPack-matched Jetson image> ...
 ARG BASE_IMAGE=dustynv/torch2trt:r36.4.0-cu128-24.04
+ARG LIBREALSENSE_VERSION=2.56.5
+
+# Build the RealSense SDK for Jetson ARM64. PyPI does not consistently offer
+# a pyrealsense2 wheel for ARM64/Python 3.12. RSUSB keeps RealSense UVC/HID
+# handling in user space, so this image does not patch the Jetson kernel.
+FROM ${BASE_IMAGE} AS librealsense-build
+ARG LIBREALSENSE_VERSION
+ARG LIBREALSENSE_BUILD_JOBS=4
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    git \
+    libssl-dev \
+    libudev-dev \
+    libusb-1.0-0-dev \
+    pkg-config \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth 1 --branch "v${LIBREALSENSE_VERSION}" \
+    https://github.com/realsenseai/librealsense.git
+
+RUN cmake -S /opt/librealsense -B /opt/librealsense-build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/opt/librealsense-install \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_GRAPHICAL_EXAMPLES=OFF \
+    -DBUILD_TOOLS=OFF \
+    -DBUILD_PYTHON_BINDINGS=ON \
+    -DCHECK_FOR_UPDATES=OFF \
+    -DIMPORT_DEPTH_CAM_FW=OFF \
+    -DFORCE_RSUSB_BACKEND=ON \
+    -DPYTHON_EXECUTABLE=/opt/venv/bin/python3 \
+    -DPYTHON_INSTALL_DIR=/opt/venv/lib/python3.12/site-packages \
+    && cmake --build /opt/librealsense-build --parallel "${LIBREALSENSE_BUILD_JOBS}" \
+    && cmake --install /opt/librealsense-build \
+    && LD_LIBRARY_PATH=/opt/librealsense-install/lib python3 -c \
+       "import pyrealsense2 as rs; print('pyrealsense2:', rs.__version__)"
+
+# Stage just the Python extension(s), instead of copying the entire virtual
+# environment from the builder image.
+RUN mkdir -p /opt/realsense-python \
+    && find /opt/venv/lib/python3.12/site-packages -maxdepth 1 \
+       \( -name 'pyrealsense2*' -o -name 'pybackend2*' -o -name 'pyrsutils*' \) \
+       -exec cp -a {} /opt/realsense-python/ \; \
+    && test -n "$(find /opt/realsense-python -maxdepth 1 -name 'pyrealsense2*' -print -quit)"
+
 FROM ${BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    LD_LIBRARY_PATH=/opt/librealsense/lib:${LD_LIBRARY_PATH}
 
 # CUDA, TensorRT, PyTorch, and torchvision are supplied by the Jetson-native
 # base image and made available to the container by the NVIDIA runtime. Do not
@@ -24,8 +75,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     libgl1 \
     libglib2.0-0 \
+    libudev1 \
     libusb-1.0-0 \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=librealsense-build /opt/librealsense-install /opt/librealsense
+COPY --from=librealsense-build /opt/realsense-python/ /opt/venv/lib/python3.12/site-packages/
 
 COPY requirements.jetson.txt /tmp/requirements.jetson.txt
 # The base image points pip at an old Jetson AI Lab index, which no longer
@@ -39,4 +94,4 @@ WORKDIR /workspace
 # Fail early if a non-CUDA PyTorch image was selected. Docker build stages do
 # not reliably receive the Jetson GPU, so torch.cuda.is_available() is checked
 # after `docker run`, not here. TensorRT is needed only for TRT commands.
-RUN python3 -c "import torch; assert torch.version.cuda is not None, 'Selected base image has no CUDA-enabled PyTorch'; print('PyTorch:', torch.__version__); print('CUDA:', torch.version.cuda)"
+RUN python3 -c "import torch, pyrealsense2 as rs; assert torch.version.cuda is not None, 'Selected base image has no CUDA-enabled PyTorch'; print('PyTorch:', torch.__version__); print('CUDA:', torch.version.cuda); print('pyrealsense2:', rs.__version__)"

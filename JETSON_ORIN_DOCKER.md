@@ -55,6 +55,11 @@ docker build --network host -t ffs:jetson -f docker/dockerfile.jetson .
 chmod +x docker/run_container_jetson.sh
 ```
 
+The first build now also compiles the ARM64 `pyrealsense2` binding from
+librealsense 2.56.5. It can take several minutes on the Orin; subsequent builds
+reuse the Docker layer unless the RealSense version or base image changes. This
+uses the RealSense `RSUSB` backend, so no host kernel patch is required.
+
 For a different compatible base-image tag:
 
 ```bash
@@ -97,6 +102,17 @@ PY
 
 `nvidia-smi` is normally unavailable on Jetson; use `tegrastats` on the host
 instead while inference is running.
+
+The image also includes the RealSense binding. Verify it before starting the
+live script:
+
+```bash
+python3 - <<'PY'
+import pyrealsense2 as rs
+print('pyrealsense2:', rs.__version__)
+print('cameras:', [d.get_info(rs.camera_info.name) for d in rs.context().devices])
+PY
+```
 
 ## 4. First GPU inference
 
@@ -153,6 +169,20 @@ For a RealSense camera, start the container with the camera's USB/UVC devices:
 ```bash
 WITH_REALSENSE=1 bash docker/run_container_jetson.sh
 ```
+
+Then run the TensorRT live camera path (the engine must have been built for the
+same `--width` and `--height`):
+
+```bash
+python3 scripts/live_realsense_trt.py \
+  --engine output_ffs_trt_jetson/fast_foundationstereo.engine \
+  --width 640 --height 480 --fps 30 --zfar 10
+```
+
+The launcher grants only the D456's USB/UVC device classes to the container.
+If the import succeeds but `cameras: []` is printed, reconnect the camera to a
+USB 3 port and relaunch with `WITH_REALSENSE=1`; do not install `pyrealsense2`
+from desktop/x86 CUDA package indexes.
 
 For OpenCV/Open3D windows, allow local-root access on the Jetson desktop once,
 then launch with X11 mounted:
