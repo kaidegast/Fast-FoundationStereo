@@ -182,7 +182,8 @@ python3 scripts/live_realsense_trt.py \
 `--show 0` is headless: it prints measured FPS every 30 frames and does not
 need X11. For the preview window, first allow the container access to the local
 X server and start it with `WITH_X11=1`, then omit `--show 0`. The Jetson image
-includes the Qt/XCB runtime libraries required by OpenCV's preview window.
+includes the Qt/XCB runtime libraries required by OpenCV's preview window,
+including the X11 session-management libraries (`libsm6` and `libice6`).
 
 The launcher grants only the D456's USB/UVC device classes to the container.
 If the import succeeds but `cameras: []` is printed, reconnect the camera to a

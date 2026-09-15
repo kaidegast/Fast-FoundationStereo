@@ -75,6 +75,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     libgl1 \
     libglib2.0-0 \
+    libice6 \
+    libsm6 \
     libudev1 \
     libusb-1.0-0 \
     libx11-xcb1 \
