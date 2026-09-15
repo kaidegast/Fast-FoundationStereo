@@ -25,6 +25,10 @@ def main():
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--zfar", type=float, default=10.0)
+    parser.add_argument(
+        "--show", type=int, default=1,
+        help="show the OpenCV preview window (0 for headless operation)",
+    )
     args = parser.parse_args()
 
     if not torch.cuda.is_available():
@@ -69,6 +73,8 @@ def main():
         )
         print("Press q or Esc to stop.")
 
+        frame_count = 0
+        headless_report_started = time.perf_counter()
         while True:
             t0 = time.perf_counter()
 
@@ -93,42 +99,48 @@ def main():
             disparity = outputs["disparity"].squeeze().float().cpu().numpy()
             disparity = disparity.clip(0, None)
 
-            depth = np.full_like(disparity, np.nan, dtype=np.float32)
-            valid = disparity > 0.1
-            depth[valid] = intr.fx * baseline / disparity[valid]
+            frame_count += 1
+            if args.show:
+                depth = np.full_like(disparity, np.nan, dtype=np.float32)
+                valid = disparity > 0.1
+                depth[valid] = intr.fx * baseline / disparity[valid]
 
-            depth_vis = np.nan_to_num(depth, nan=args.zfar, posinf=args.zfar)
-            depth_vis = np.clip(depth_vis, 0.2, args.zfar)
-            depth_vis = 1.0 - (depth_vis - 0.2) / (args.zfar - 0.2)
-            depth_vis = cv2.applyColorMap(
-                (depth_vis * 255).astype(np.uint8), cv2.COLORMAP_TURBO
-            )
+                depth_vis = np.nan_to_num(depth, nan=args.zfar, posinf=args.zfar)
+                depth_vis = np.clip(depth_vis, 0.2, args.zfar)
+                depth_vis = 1.0 - (depth_vis - 0.2) / (args.zfar - 0.2)
+                depth_vis = cv2.applyColorMap(
+                    (depth_vis * 255).astype(np.uint8), cv2.COLORMAP_TURBO
+                )
 
-            left_vis = cv2.cvtColor(left, cv2.COLOR_GRAY2BGR)
-            view = np.hstack((left_vis, depth_vis))
+                left_vis = cv2.cvtColor(left, cv2.COLOR_GRAY2BGR)
+                view = np.hstack((left_vis, depth_vis))
 
-            torch.cuda.synchronize()
-            fps = 1.0 / (time.perf_counter() - t0)
+                torch.cuda.synchronize()
+                fps = 1.0 / (time.perf_counter() - t0)
+                cv2.putText(
+                    view,
+                    f"TensorRT {fps:.1f} FPS",
+                    (15, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+                cv2.imshow("D456 IR (left) | FFS TensorRT depth", view)
 
-            cv2.putText(
-                view,
-                f"TensorRT {fps:.1f} FPS",
-                (15, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-
-            cv2.imshow("D456 IR (left) | FFS TensorRT depth", view)
-
-            if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
-                break
+                if (cv2.waitKey(1) & 0xFF) in (ord("q"), 27):
+                    break
+            elif frame_count % 30 == 0:
+                torch.cuda.synchronize()
+                fps = 30.0 / (time.perf_counter() - headless_report_started)
+                print(f"Live TensorRT: {fps:.1f} FPS", flush=True)
+                headless_report_started = time.perf_counter()
 
     finally:
         pipeline.stop()
-        cv2.destroyAllWindows()
+        if args.show:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

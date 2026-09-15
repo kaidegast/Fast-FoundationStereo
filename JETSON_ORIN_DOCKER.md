@@ -176,8 +176,13 @@ same `--width` and `--height`):
 ```bash
 python3 scripts/live_realsense_trt.py \
   --engine output_ffs_trt_jetson/fast_foundationstereo.engine \
-  --width 640 --height 480 --fps 30 --zfar 10
+  --width 640 --height 480 --fps 30 --zfar 10 --show 0
 ```
+
+`--show 0` is headless: it prints measured FPS every 30 frames and does not
+need X11. For the preview window, first allow the container access to the local
+X server and start it with `WITH_X11=1`, then omit `--show 0`. The Jetson image
+includes the Qt/XCB runtime libraries required by OpenCV's preview window.
 
 The launcher grants only the D456's USB/UVC device classes to the container.
 If the import succeeds but `cameras: []` is printed, reconnect the camera to a
