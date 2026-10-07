@@ -23,6 +23,14 @@ def main():
     )
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
+    parser.add_argument(
+        "--infer-width", type=int,
+        help="static TensorRT-engine input width (defaults to --width)",
+    )
+    parser.add_argument(
+        "--infer-height", type=int,
+        help="static TensorRT-engine input height (defaults to --height)",
+    )
     parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--zfar", type=float, default=10.0)
     parser.add_argument(
@@ -30,6 +38,18 @@ def main():
         help="show the OpenCV preview window (0 for headless operation)",
     )
     args = parser.parse_args()
+
+    if (args.infer_width is None) != (args.infer_height is None):
+        parser.error("--infer-width and --infer-height must be specified together")
+    infer_width = args.infer_width or args.width
+    infer_height = args.infer_height or args.height
+    if infer_width <= 0 or infer_height <= 0:
+        parser.error("inference dimensions must be positive")
+    if args.width * infer_height != args.height * infer_width:
+        parser.error(
+            "camera and inference dimensions must have the same aspect ratio "
+            "to preserve stereo geometry"
+        )
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is not available")
@@ -66,10 +86,12 @@ def main():
         intr = left_profile.get_intrinsics()
         extr = left_profile.get_extrinsics_to(right_profile)
         baseline = float(np.linalg.norm(extr.translation))
+        infer_fx = intr.fx * infer_width / intr.width
 
         print(
-            f"Live TensorRT: {args.width}x{args.height} @ {args.fps} FPS, "
-            f"fx={intr.fx:.2f}, baseline={baseline:.6f} m"
+            f"Live TensorRT: camera {args.width}x{args.height}, "
+            f"engine {infer_width}x{infer_height} @ {args.fps} FPS, "
+            f"fx={infer_fx:.2f}, baseline={baseline:.6f} m"
         )
         print("Press q or Esc to stop.")
 
@@ -79,8 +101,19 @@ def main():
             t0 = time.perf_counter()
 
             frames = pipeline.wait_for_frames()
-            left = np.asanyarray(frames.get_infrared_frame(1).get_data())
-            right = np.asanyarray(frames.get_infrared_frame(2).get_data())
+            left_camera = np.asanyarray(frames.get_infrared_frame(1).get_data())
+            right_camera = np.asanyarray(frames.get_infrared_frame(2).get_data())
+            if (infer_width, infer_height) == (args.width, args.height):
+                left, right = left_camera, right_camera
+            else:
+                left = cv2.resize(
+                    left_camera, (infer_width, infer_height),
+                    interpolation=cv2.INTER_AREA,
+                )
+                right = cv2.resize(
+                    right_camera, (infer_width, infer_height),
+                    interpolation=cv2.INTER_AREA,
+                )
 
             # Match the exported ONNX input preprocessing exactly.
             left_rgb = np.repeat(left[..., None], 3, axis=2)
@@ -103,7 +136,7 @@ def main():
             if args.show:
                 depth = np.full_like(disparity, np.nan, dtype=np.float32)
                 valid = disparity > 0.1
-                depth[valid] = intr.fx * baseline / disparity[valid]
+                depth[valid] = infer_fx * baseline / disparity[valid]
 
                 depth_vis = np.nan_to_num(depth, nan=args.zfar, posinf=args.zfar)
                 depth_vis = np.clip(depth_vis, 0.2, args.zfar)
@@ -112,7 +145,13 @@ def main():
                     (depth_vis * 255).astype(np.uint8), cv2.COLORMAP_TURBO
                 )
 
-                left_vis = cv2.cvtColor(left, cv2.COLOR_GRAY2BGR)
+                left_vis = cv2.cvtColor(left_camera, cv2.COLOR_GRAY2BGR)
+                if depth_vis.shape[:2] != left_camera.shape[:2]:
+                    depth_vis = cv2.resize(
+                        depth_vis,
+                        (left_camera.shape[1], left_camera.shape[0]),
+                        interpolation=cv2.INTER_NEAREST,
+                    )
                 view = np.hstack((left_vis, depth_vis))
 
                 torch.cuda.synchronize()

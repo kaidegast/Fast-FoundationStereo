@@ -185,6 +185,21 @@ X server and start it with `WITH_X11=1`, then omit `--show 0`. The Jetson image
 includes the Qt/XCB runtime libraries required by OpenCV's preview window,
 including the X11 session-management libraries (`libsm6` and `libice6`).
 
+For lower-latency inference, the live script can capture D456 IR at 640x480
+while feeding a same-aspect-ratio static engine at 384x288. It rescales the
+focal length used for depth and upscales only the preview:
+
+```bash
+python3 scripts/live_realsense_trt.py \
+  --engine output_ffs_384_i2_d64/fast_foundationstereo.engine \
+  --width 640 --height 480 --infer-width 384 --infer-height 288 \
+  --fps 30 --zfar 10 --show 0
+```
+
+The engine must be exported and built at exactly 384x288. Camera and inference
+dimensions must keep the same aspect ratio; otherwise stereo geometry is
+distorted.
+
 The launcher grants only the D456's USB/UVC device classes to the container.
 If the import succeeds but `cameras: []` is printed, reconnect the camera to a
 USB 3 port and relaunch with `WITH_REALSENSE=1`; do not install `pyrealsense2`

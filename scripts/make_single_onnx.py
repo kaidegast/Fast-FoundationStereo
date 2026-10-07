@@ -167,6 +167,11 @@ if __name__ == '__main__':
 
     assert args.height % 32 == 0 and args.width % 32 == 0, \
         'height and width must be divisible by 32'
+    if args.max_disp <= 0 or args.max_disp % 32:
+        parser.error(
+            '--max_disp must be a positive multiple of 32 for the 3D '
+            'cost-aggregation hourglass (for example: 32, 64, 96, 128)'
+        )
 
     os.makedirs(args.save_path, exist_ok=True)
     torch.autograd.set_grad_enabled(False)
